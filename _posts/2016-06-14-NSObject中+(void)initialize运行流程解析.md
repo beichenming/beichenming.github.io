@@ -14,7 +14,7 @@ tags:
 
 上次讲了关于＋(void)load的运行流程解析，所以肯定就有必要来讲一下+(void)initialize，因为大家都会拿这两个函数做比较。
 
-`+(void)initialize`
+### +(void)initialize
 
 官方的spec是这么定义的：
 
@@ -173,18 +173,18 @@ PRIVATE_EXTERN void _class_initialize(Class cls)
 引用一下网上对于load和initialize的区别总结：
 
 ```
-			  +load				 +initialize
-调用时机		被添加到runtime时	 收到第一条消息前，可能永远不调用
+              +load		  +initialize
+调用时机		被添加到runtime时	     收到第一条消息前，可能永远不调用
 
-调用顺序		父类->子类->分类			父类->子类
+调用顺序		父类->子类->分类		 父类->子类
 
-调用次数	    1次					多次
+调用次数	    1次					 多次
 
-是否需要显式     否                      否
+是否需要显式  否                  否
 调用父类实现				
 
-是否沿用         否                      是
+是否沿用     否                  是
 父类的实现						
 
-分类中的实现      类和分类都执行	        覆盖类中的方法，只执行分类的实现
+分类中的实现  类和分类都执行       覆盖类中的方法，只执行分类的实现
 ```

@@ -1,6 +1,6 @@
 # Site settings
 title: BCM Blog
-SEOTitle: 你的博客 | Your Blog
+SEOTitle: 北辰明 | My Blog
 header-img: img/home-bg.jpg
 email: beichenming@163.com
 description: "北辰明(请叫我辰明哥)其实是个逗比，喜欢写代码，也喜欢做菜。感觉自己是个文艺青年，但往往文艺不起来；感觉自己也是一个段子手，好像确实挺会讲段子的；我希望通过我自己的努力做一些事，让这个世界因为有我会有一点不一样～"
@@ -24,7 +24,7 @@ facebook_username:  huxpro
 # from 2016, 'pygments' is unsupported on GitHub Pages. Use 'rouge' for highlighting instead.
 highlighter: rouge
 permalink: pretty
-paginate: 10
+paginate: 6
 exclude: ["less","node_modules","Gruntfile.js","package.json","README.md"]
 anchorjs: true                          # if you want to customize anchor. check out line:181 of `post.html`
 
