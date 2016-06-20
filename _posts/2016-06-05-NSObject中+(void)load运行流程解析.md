@@ -48,7 +48,7 @@ In a custom implementation of load you can therefore safely message other unrela
 
 接下来我们具体看一下+(void)load方法是如何被执行的：
 
-![Paste_Image.png](http://upload-images.jianshu.io/upload_images/2039514-0b8fb120cd381742.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![Paste_Image.png](../img/technology/2016-06-05/pic_one.png)
 
 我们可以看到，在执行到+(void)load之前的堆栈信息是这样的，我们可以从堆栈中看出dyld start，然后进入dyld main函数的入口，之后就开始初始化一系列方法，通过ImageLoader将二进制的文件加载进来，最后通知runtime开始执行，以上是我刚开始看到时候的猜想，那么到底是不是这样呢，我们来验证一下。其实dyld也是开源的[(dynamic link editor，动态链接器)](https://github.com/opensource-apple/dyld)，但是我并没有去看过，因为水平不够嘛，不过未来还是会去看看的。言归正传，这个时候我们看到ImageLoader结束以后开始执行了我们的第一个runtime函数：load_images（其实不是第一个，后面会改正），我们可以来看看load_images干了些什么事：
 
@@ -260,11 +260,11 @@ void _objc_init(void)
 ```
 这个函数一看就是runtime加载的入口函数，通过map_image把image加载到内存里，事实是否如此，我们就来验证一下好了，断点是最能证明的。
 
-![Paste_Image.png](http://upload-images.jianshu.io/upload_images/2039514-25b6ca29d131bea4.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![Paste_Image.png](../img/technology/2016-06-05/pic_two.png)
 
 果然就像我们说的，最后附上一张所以讲到的函数断点图，同学们可以自己验证一下。
 
-![Paste_Image.png](http://upload-images.jianshu.io/upload_images/2039514-91f71fbad2ef7633.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![Paste_Image.png](../img/technology/2016-06-05/pic_three.png)
 
 `最后就是讲关于+(void)load函数的具体应用了，load函数其实是在main函数之前就回被调用，所以Method Swizzing肯定就是在这个时候调用的，同时比如在运行时动态添加属性，方法甚至类等等，但是千万不要在这里初始化OC的对象，因为load执行的时候你不知道你使用的对象是否已经被加载进来，所以无法预知情况。`
 
