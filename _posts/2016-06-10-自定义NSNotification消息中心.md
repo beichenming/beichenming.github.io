@@ -12,6 +12,8 @@ tags:
 
 `原创文章转载请注明出处，谢谢`
 
+---
+
 `端午想好好休息一下，于是就没出去玩了，陪陪家人和妹子`
 
 关于NSNotification大家一定不会陌生，所以这里我就不讲关于NSNotification的具体用法了，网上一搜一大片。NSNotification是基于Observe Design Pattern来实现的，所有Register了这个消息的对象，都会收到由NSNotification发送的消息。它有一个自己的消息中心是一个单例，我们基本通过以下三个函数就可以实现一个基本的Observe Pattern。

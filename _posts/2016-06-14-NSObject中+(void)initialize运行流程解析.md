@@ -12,6 +12,8 @@ tags:
 
 `原创文章转载请注明出处，谢谢`
 
+---
+
 上次讲了关于＋(void)load的运行流程解析，所以肯定就有必要来讲一下+(void)initialize，因为大家都会拿这两个函数做比较。
 
 ### +(void)initialize
