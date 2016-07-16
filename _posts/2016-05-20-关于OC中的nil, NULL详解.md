@@ -4,7 +4,7 @@ title: 关于OC中的nil, NULL详解
 subtitle:   "Object C 基础知识笔记"
 date:       2016-05-20 21:31:00
 author:     "BCM"
-header-img: ""
+header-img: "../../img/post-bg-2015.jpg"
 tags:
     - Object C
     - iOS

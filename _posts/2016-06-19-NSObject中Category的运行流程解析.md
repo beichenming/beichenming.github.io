@@ -4,7 +4,7 @@ title: NSObject中Category的运行流程解析
 subtitle:   "Runtime Source Code笔记"
 date:       2016-06-19 13:31:00
 author:     "BCM"
-header-img: ""
+header-img: "../../img/post-bg-2015.jpg"
 tags:
     - Object C
     - iOS

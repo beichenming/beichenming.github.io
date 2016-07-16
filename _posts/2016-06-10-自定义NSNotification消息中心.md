@@ -4,7 +4,7 @@ title: 自定义NSNotification消息中心
 subtitle:   "App 应用笔记"
 date:       2016-06-10 22:31:00
 author:     "BCM"
-header-img: ""
+header-img: "../../img/post-bg-2015.jpg"
 tags:
     - Object C
     - iOS
