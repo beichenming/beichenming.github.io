@@ -12,7 +12,6 @@ tags:
 `原创文章转载请注明出处，谢谢`
 
 ---
-
 #### 1.关于Mac OS Classic
 Mac OS Classic是Mac OSX在OSX之前时代的名字，Mac OS Classic最后一个版本就是Mac OS 9，这也就是为什么OSX都是从10开始的原因，Mac OS Classic是一个全GUI的操作系统（但是并没有Terminal这样的应用存在）。
 优点：出现了Finder的GUI，以及第一代HFS文件系统对于fork的支持。
@@ -95,17 +94,41 @@ Leopard更新了大量的新特性：
 
 **iOS6.0**
 
-引入AutoLayout,GameCenter，Passbook。放弃使用Google地图，使用自己的地图应用，Siri增强，新增通知中心。
+1. 抛弃Google Map，使用自家的地图，MapKit也开始和Apple的地图开始绑定，第三方的App可以和地图进行交互。
+2. 深度社交网络的集成，包括Facebook和Sina Weibo，直接可以通过调用Social.framework来完成，同时新增了一个UIActivityController来询问用户的社交行为。
+3. Passbook可以用来存储一些优惠券电影票等，可以使用NFC完成电子钱包等功能；PassKit可以用来生成和读取包含一些类似优惠券之类信息的特殊文件，然后以加密签名的方式发送给用户。
+4. Game Center的一次升级
+5. 自带的提醒应用得到加强，开放了Reminder里添加东西和从中读取的API，以及一套标准的用户界面。
+6. 提供了新的瀑布流展示方式，UICollectionViewController。
+7. UI状态的保存；Apple希望用户关闭app，然后下一次打开时能保持关闭时的界面状态。对于支持后台且不能被kill的情况是天然的，但是如果不支持后台运行或者用户自己kill掉进程的话，就比较麻烦。现在的做法就是从rootViewController开始把所有的VC归档后存成NSData，然后下次启动的时候做检查如果需要的话就恢复出来。
+8. 整个UIView都支持NSAttributedString格式化字符串。特别是UITextView和UITextField。
 
 **iOS7.0**
 
-新增Touch ID，多任务界面，以及AirDrop。
+1. 全新的UI设计；状态栏，导航栏和应用实际展示内容不再界限：系统自带的应用都不再区分状态栏和navigation bar，而是用统一的颜色力求简洁；BarItem的按钮全部文字化；程序打开加入了动画：从主界面到图标所在位置的一个放大，同时显示应用的载入界面；
+2. UIKit方面的力学模型，以及游戏方面加入了Sprite Kit Framework和Game Controller Framework；
+3. 可以通过设置UIBackgroundModes为fetch来实现后台下载内容了，需要在AppDelegate里实现setMinimumBackgroundFetchInterval:以及application:performFetchWithCompletionHandler:来处理完成的下载。
+4. AirDrop；用户可以用它来分享照片，文档，链接，或者其他数据给附近的设备。但是不需要特别的实现，被集成在了标准的UIActivityViewController里。
+5. 增加了自带地图的一些特性；
+6. AudioUnit框架中加入了在同一台设备不同应用之间发送MIDI指令和传送音频的能力；
+7. 新增Touch ID；
 
 **iOS8.0**
 
-新增HealthKit，iMessage可以发送语音，视频；开发Touch ID功能，改进了Spotlight的本地搜索功能。
+1. 应用扩展（Extension），Apple 允许我们在 app 中添加一个新的 target，用来提供一些扩展功能：对于应用扩展，Apple 将其定义为 App 的功能的自然延伸，因此不是单独存在的，而是随着应用本体的包作为附属而被一同下载和安装到用户的设备中的，用户需要在之后选择将其开启。另外，由于应用扩展和应用是属于两个不同的 target 的，因此它们之间的数据和操作上的交互遵循的是另一套原则。
+2. 添加了sizeclass的布局方式，可以使用一套UI来适配不同的屏幕。
+3. 新增了HealthKit和HomeKit的应用，以及框架。
+4. Touch ID API开放
+5. iMessage可以发送语音，视频；开发Touch ID功能，
+6. 改进了Spotlight的本地搜索功能。
 
-`当然以上部分只是软件方面的，并没有提及开发方面的特性，这个我会稍后补充。`
+**iOS9.0**
+
+1. Multitasking多任务特性，特别是分屏多任务使得 iPad 真正变得像一个堪当重任的个人电脑。
+2. 在新的 watchOS 2 中，Watch App 的架构发生了巨大改变。新系统中 Watch App 的 extension 将不像现在这样存在于 iPhone 中，而是会直接安装到手表里去，Apple Watch 从一个单纯的界面显示器进化为了可执行开发者代码的设备。
+3. 引入了UI Test
+4. Swift2.0
+5. HealthKit引入新的体征，以及HomeKit和CloudKit也有不少变化。
 
 #### 总结一下Mac OS X和iOS的一些差异
 `1.iOS内核和二进制文件编译的目标架构是基于ARM架构的，OSX是基于Intel i386和x86_64的（现在应该都是x86_64），iOS的处理器目前最新的是A9处理器，不管是哪一代都是采用ARM设计的，ARM相比Intel的优势在于电源管理方面。`
