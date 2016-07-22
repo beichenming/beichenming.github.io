@@ -12,6 +12,7 @@ tags:
 `原创文章转载请注明出处，谢谢`
 
 ---
+
 #### 1.关于Mac OS Classic
 Mac OS Classic是Mac OSX在OSX之前时代的名字，Mac OS Classic最后一个版本就是Mac OS 9，这也就是为什么OSX都是从10开始的原因，Mac OS Classic是一个全GUI的操作系统（但是并没有Terminal这样的应用存在）。
 优点：出现了Finder的GUI，以及第一代HFS文件系统对于fork的支持。
