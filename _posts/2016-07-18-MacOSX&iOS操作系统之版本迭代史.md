@@ -6,8 +6,7 @@ date:       2016-07-17 12:45:00
 author:     "BCM"
 header-img: "../../img/post-bg-2015.jpg"
 tags:
-    - Mac
-    - iOS
+    - 操作系统
 ---
 `原创文章转载请注明出处，谢谢`
 
