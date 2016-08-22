@@ -1,6 +1,6 @@
 ---
 layout: post
-title: iOS的HotFix方案总结
+title: iOS中的HotFix方案总结
 subtitle:   "App 应用笔记"
 date:       2016-08-20 21:45:00
 author:     "BCM"
