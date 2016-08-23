@@ -209,9 +209,13 @@ var _require = function(clsName) {
  global.defineClass = function(declaration, properties, instMethods, clsMethods) 
 ```
 defineClass函数可接受四个参数：
+
 `字符串:”需要替换或者新增的类名:继承的父类名 <实现的协议1，实现的协议2>”`
+
 `[属性]`
+
 `{实例方法}`
+
 `{类方法}`
 
 当我调用这个函数以后主要是做三件事情：
