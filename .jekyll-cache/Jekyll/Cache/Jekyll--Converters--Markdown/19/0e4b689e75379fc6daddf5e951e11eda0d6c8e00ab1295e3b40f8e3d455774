@@ -1,0 +1,332 @@
+I"�I<p><code class="highlighter-rouge">原创文章转载请注明出处，谢谢</code></p>
+
+<hr />
+
+<h3 id="aopaspect-oriented-programming面向切面编程">AOP(Aspect Oriented Programming)面向切面编程</h3>
+
+<p><strong>相比传统的OOP来说，OOP的特点在于它可以很好的将系统横向分为很多个模块（比如通讯录模块，聊天模块，发现模块），每个子模块可以横向的衍生出更多的模块，用于更好的区分业务逻辑。而AOP其实相当于是纵向的分割系统模块，将每个模块里的公共部分提取出来（即那些与业务逻辑不相关的部分，如日志，用户行为等等），与业务逻辑相分离开来，从而降低代码的耦合度。</strong></p>
+
+<p><strong>AOP主要是被使用在日志记录，性能统计，安全控制，事务处理，异常处理几个方面。由于本人并不是位大神（正在成长中），所以目前只在项目里用到了日志记录和事物处理这两个方面，另外几个方面会在以后陆陆续续更新。</strong></p>
+
+<p><code class="highlighter-rouge">注意：AOP和OOP一样，并不是一种技术，而是一种编程思想，所有实现了AOP编程思想的都算是AOP的实现。</code></p>
+
+<p><strong>在iOS中我们通常使用Method Swizzling（俗称iOS黑魔法）来实现AOP，Method Swizzling其实就是一种在Runtime的时候把一个方法的实现与另一个方法的实现互相替换。具体详见<a href="http://nshipster.com/method-swizzling/">Method Swizzling</a></strong></p>
+
+<p><strong>Aspects 一个基于Objective-C的AOP开发框架，封装了 Runtime ，是我们平时比较常用到实现Method Swizzling的一个类库，它提供了如下两个API：</strong></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>typedef NS_OPTIONS(NSUInteger, AspectOptions) {
+    AspectPositionAfter   = 0,            /// Called after the original implementation (default)
+    AspectPositionInstead = 1,            /// Will replace the original implementation.
+    AspectPositionBefore  = 2,            /// Called before the original implementation.
+    AspectOptionAutomaticRemoval = 1 &lt;&lt; 3 /// Will remove the hook after the first execution.
+};
+
+/// Adds a block of code before/instead/after the current `selector` for a specific class.
+///
+/// @param block Aspects replicates the type signature of the method being hooked.
+/// The first parameter will be `id&lt;AspectInfo&gt;`, followed by all parameters of the method.
+/// These parameters are optional and will be filled to match the block signature.
+/// You can even use an empty block, or one that simple gets `id&lt;AspectInfo&gt;`.
+///
+/// @note Hooking static methods is not supported.
+/// @return A token which allows to later deregister the aspect.
++ (id&lt;AspectToken&gt;)aspect_hookSelector:(SEL)selector
+                      withOptions:(AspectOptions)options
+                       usingBlock:(id)block
+                            error:(NSError **)error;
+
+/// Adds a block of code before/instead/after the current `selector` for a specific instance.
+- (id&lt;AspectToken&gt;)aspect_hookSelector:(SEL)selector
+                      withOptions:(AspectOptions)options
+                       usingBlock:(id)block
+                            error:(NSError **)error;
+</code></pre></div></div>
+<h3 id="aop-ios中的事务处理之版本控制">AOP iOS中的事务处理之版本控制</h3>
+<p><strong>我之前维护过一个项目Toast系列（Mac下一个比较有名的刻盘软件），它有很多的版本比如Pro版本，LT(lite)版本。顾名思义LT其实就是关闭了很多功能的一个版本，很多对应的事件在LT不会被触发，所以为了阻止事件的触发，每个用户事件中都会出现一段如下的宏判断</strong></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- (void)detailBottomBtnEvent:(id)sender {
+//if we not use AOP, we must write this code in project
+#ifdef LITE_VERSION
+    //do nothing
+#else
+   //do all thing
+#endif
+}
+
+</code></pre></div></div>
+<p><strong>这显然不是我们想要看到的结果，每个用户事件里都会去判断LT_VERSION的宏，然后在做对应的事件处理。LT的版本不是一个主版本，我们的业务逻辑里主要还是需要触发用户对应的事件，所以这个时候我们就可以用到AOP的思想</strong></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>//
+//  AppDelegate+LiteEvent.m
+//  AOPTransactionIntactDemo
+//
+//  Created by wuyike on 16/5/19.
+//  Copyright © 2016年 bongmi. All rights reserved.
+//
+
+#import "AppLiteDelegate+LiteEvent.h"
+
+#import "Aspects.h"
+
+typedef void (^AspectHandlerBlock)(id&lt;AspectInfo&gt; aspectInfo);
+
+@implementation AppLiteDelegate (LiteEvent)
+
+- (void)setLiteEvent {
+#ifdef LITE_VERSION
+    
+    NSDictionary *configs = @{
+                             @"AOPTopViewController": @{
+                                     UserTrackedEvents: @[
+                                             @{
+                                                 UserEventName: @"detailBtn",
+                                                 UserEventSelectorName: @"detailTopBtnEvent:",
+                                                 UserEventHandlerBlock: ^(id&lt;AspectInfo&gt; aspectInfo) {
+                                                     NSLog(@"Top detailBtn clicked, this is lite version");
+                                                 },
+                                                 },
+                                             ],
+                                     },
+                             
+                             @"AOPBottomViewController": @{
+                                     UserTrackedEvents: @[
+                                             @{
+                                                 UserEventName: @"detailBtn",
+                                                 UserEventSelectorName: @"detailBottomBtnEvent:",
+                                                 UserEventHandlerBlock: ^(id&lt;AspectInfo&gt; aspectInfo) {
+                                                     NSLog(@"Bottom detailBtn clicked this is lite version");
+                                                 },
+                                                 },
+                                             ],
+                                     },
+                             
+                             @"AOPLeftViewController": @{
+                                     UserTrackedEvents: @[
+                                             @{
+                                                 UserEventName: @"detailBtn",
+                                                 UserEventSelectorName: @"detailLeftBtnEvent:",
+                                                 UserEventHandlerBlock: ^(id&lt;AspectInfo&gt; aspectInfo) {
+                                                     NSLog(@"Left detailBtn clicked this is lite version");
+                                                 },
+                                                 },
+                                             ],
+                                     },
+                             
+                             @"AOPRightViewController": @{
+                                     UserTrackedEvents: @[
+                                             @{
+                                                 UserEventName: @"detailBtn",
+                                                 UserEventSelectorName: @"detailRightBtnEvent:",
+                                                 UserEventHandlerBlock: ^(id&lt;AspectInfo&gt; aspectInfo) {
+                                                     NSLog(@"Right detailBtn clicked this is lite version");
+                                                 },
+                                                 },
+                                             ],
+                                     },
+                             };
+    
+    for (NSString *className in configs) {
+        Class clazz = NSClassFromString(className);
+        NSDictionary *config = configs[className];
+        
+        if (config[UserTrackedEvents]) {
+            for (NSDictionary *event in config[UserTrackedEvents]) {
+                SEL selekor = NSSelectorFromString(event[UserEventSelectorName]);
+                AspectHandlerBlock block = event[UserEventHandlerBlock];
+                
+                [clazz aspect_hookSelector:selekor
+                               withOptions:AspectPositionInstead
+                                usingBlock:^(id&lt;AspectInfo&gt; aspectInfo) {
+                                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                                        block(aspectInfo);
+                                    });
+                                  } error:NULL];
+                
+            }
+        }
+    }
+#endif
+}
+</code></pre></div></div>
+<p><strong>我们有Top,Buttom,Left,Right四个ViewController，每个ViewController中都有一个对应的用户触发事件，我们只需要在LT版本下替换对应的事件就可以，每个模块的业务逻辑不需要任何改动。</strong></p>
+
+<p><a href="https://github.com/beichenming/AOPTransactionDemo">Demo 下载</a></p>
+
+<h3 id="aop-ios中的事务处理之安全可变容器">AOP iOS中的事务处理之安全可变容器</h3>
+<p><strong>OC中任何以NSMutable开头的类都是可变容器，它们一般都具有（insert 、remove、replace）等操作，所以我们经常需要判断容器是否为空，以及指针越界等问题。为了避免我们在每次操作这些容器的时候都去判断，一般有以下几种解决方法：</strong></p>
+
+<ol>
+  <li><code class="highlighter-rouge">派生类</code></li>
+  <li><code class="highlighter-rouge">Category</code></li>
+  <li><code class="highlighter-rouge">Method Swizzling</code></li>
+</ol>
+
+<p><strong>使用派生类肯定不是好的方法，Category可以解决我们的问题，但是导致项目中所有用到容器操作的地方都需要显示的调用我们新加的方法，所以也不是很优雅。所以这个时候用Method Swizzling就是一个不错的选择。</strong></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#import "NSMutableArray+SafeArray.h"
+#import &lt;objc/runtime.h&gt;
+
+@implementation NSMutableArray (SafeArray)
+
++ (void)load {
+    [[self class] swizzleMethod:@selector(addObject:) withMethod:@selector(safeAddObject:)];
+    [[self class] swizzleMethod:@selector(objectAtIndex:) withMethod:@selector(safeObjectAtIndex:)];
+    [[self class] swizzleMethod:@selector(insertObject:atIndex:) withMethod:@selector(safeInsertObject:atIndex:)];
+    [[self class] swizzleMethod:@selector(removeObjectAtIndex:) withMethod:@selector(safeRemoveObjectAtIndex:)];
+    [[self class] swizzleMethod:@selector(replaceObjectAtIndex:withObject:) withMethod:@selector(safeReplaceObjectAtIndex:withObject:)];
+    NSLog(@"%@ %@", @"SafeArray", [self class]);
+}
+
+#pragma mark - magic
+
+- (void)safeAddObject:(id)anObject {
+    //do safe operate
+    if (anObject) {
+        [self safeAddObject:anObject];
+    } else {
+        NSLog(@"safeAddObject: anObject is nil");
+    }
+}
+
+- (id)safeObjectAtIndex:(NSInteger)index {
+    //do safe operate
+    if (index &gt;= 0 &amp;&amp; index &lt;= self.count) {
+        return [self safeObjectAtIndex:index];
+    }
+    NSLog(@"safeObjectAtIndex: index is invalid");
+    return nil;
+}
+
+- (void)safeInsertObject:(id)anObject
+                 atIndex:(NSUInteger)index {
+   //do safe operate
+    if (anObject &amp;&amp; index &gt;= 0 &amp;&amp; index &lt;= self.count) {
+        [self safeInsertObject:anObject atIndex:index];
+    } else {
+        NSLog(@"safeInsertObject:atIndex: anObject or index is invalid");
+    }
+}
+
+- (void)safeRemoveObjectAtIndex:(NSUInteger)index {
+  //do safe operate
+    if (index &gt;= 0 &amp;&amp; index &lt;= self.count) {
+        [self safeRemoveObjectAtIndex:index];
+    } else {
+        NSLog(@"safeRemoveObjectAtIndex: index is invalid");
+    }
+}
+
+- (void)safeReplaceObjectAtIndex:(NSUInteger)index
+                      withObject:(id)anObject {
+   //do safe operate
+    if (anObject &amp;&amp; index &gt;= 0 &amp;&amp; index &lt;= self.count) {
+        [self safeReplaceObjectAtIndex:index withObject:anObject];
+    } else {
+        NSLog(@"safeReplaceObjectAtIndex:withObject: anObject or index is invalid");
+    }
+}
+
+- (void)swizzleMethod:(SEL)origSelector
+           withMethod:(SEL)newSelector {
+    Class class = [self class];
+    
+    Method originalMethod = class_getInstanceMethod(class, origSelector);
+    Method swizzledMethod = class_getInstanceMethod(class, newSelector);
+    
+    BOOL didAddMethod = class_addMethod(class,
+                                        origSelector,
+                                        method_getImplementation(swizzledMethod),
+                                        method_getTypeEncoding(swizzledMethod));
+    if (didAddMethod) {
+        class_replaceMethod(class,
+                            newSelector,
+                            method_getImplementation(originalMethod),
+                            method_getTypeEncoding(originalMethod));
+    } else {
+        method_exchangeImplementations(originalMethod, swizzledMethod);
+    }
+}
+</code></pre></div></div>
+
+<p><strong>以上就是我用AOP思想在事件处理方面的两个具体的应用。</strong></p>
+
+<h3 id="aop-ios中的日志记录">AOP iOS中的日志记录</h3>
+<p><strong>通常我们会在项目中收集用户的日志，以及用户行为，以用来分析Bug，以及提升产品质量。项目往往包含很多的模块，以及下面会有更多的子模块，所以如果把这些操作具体加载每个事件中，显然这种做法是不可取的，第一所有收集用户行为的操作不属于业务逻辑范畴，我们不需要分散到各个业务中。第二这种方式的添加不利于后期维护，而且改动量是巨大的。所以这里使用上面提到的版本控制事件处理相同的方式，这里抄袭一个Demo</strong></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- (void)setupLogging
+{
+    NSDictionary *config = @{
+        @"MainViewController": @{
+              GLLoggingPageImpression: @"page imp - main page",
+              GLLoggingTrackedEvents: @[
+                      @{
+                          GLLoggingEventName: @"button one clicked",
+                          GLLoggingEventSelectorName: @"buttonOneClicked:",
+                          GLLoggingEventHandlerBlock: ^(id&lt;AspectInfo&gt; aspectInfo) {
+                              NSLog(@"button one clicked");
+                          },
+                        },
+                      @{
+                          GLLoggingEventName: @"button two clicked",
+                          GLLoggingEventSelectorName: @"buttonTwoClicked:",
+                          GLLoggingEventHandlerBlock: ^(id&lt;AspectInfo&gt; aspectInfo) {
+                              NSLog(@"button two clicked");
+                          },
+                        },
+                      ],
+        },
+
+        @"DetailViewController": @{
+              GLLoggingPageImpression: @"page imp - detail page",
+        }
+    };
+    
+    [GLLogging setupWithConfiguration:config];
+}
+
+typedef void (^AspectHandlerBlock)(id&lt;AspectInfo&gt; aspectInfo);
+
++ (void)setupWithConfiguration:(NSDictionary *)configs
+{
+    // Hook Page Impression
+    [UIViewController aspect_hookSelector:@selector(viewDidAppear:)
+                              withOptions:AspectPositionAfter
+                               usingBlock:^(id&lt;AspectInfo&gt; aspectInfo) {
+                                   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                                       NSString *className = NSStringFromClass([[aspectInfo instance] class]);
+                                       NSString *pageImp = configs[className][GLLoggingPageImpression];
+                                       if (pageImp) {
+                                           NSLog(@"%@", pageImp);
+                                       }
+                                   });
+                               } error:NULL];
+
+    // Hook Events
+    for (NSString *className in configs) {
+        Class clazz = NSClassFromString(className);
+        NSDictionary *config = configs[className];
+        
+        if (config[GLLoggingTrackedEvents]) {
+            for (NSDictionary *event in config[GLLoggingTrackedEvents]) {
+                SEL selekor = NSSelectorFromString(event[GLLoggingEventSelectorName]);
+                AspectHandlerBlock block = event[GLLoggingEventHandlerBlock];
+                
+                [clazz aspect_hookSelector:selekor
+                               withOptions:AspectPositionAfter
+                                usingBlock:^(id&lt;AspectInfo&gt; aspectInfo) {
+                                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                                        block(aspectInfo);
+                                    });
+                                } error:NULL];
+                
+            }
+        }
+    }
+}
+</code></pre></div></div>
+<p><strong>我们通过上述的操作可以在每个用户事件触发后都追加一个用户的行为记录，同时又不需要修改业务逻辑。</strong></p>
+
+<h3 id="总结">总结</h3>
+<p><strong>这里反馈一个关于Aspect的问题，貌似Aspect不支持不同类中含有相同名称的方法时，会出现不能正确替换方法的情况，详细可以参见<a href="https://github.com/steipete/Aspects/issues/48">https://github.com/steipete/Aspects/issues/48</a>
+ <a href="https://github.com/steipete/Aspects/issues/24">https://github.com/steipete/Aspects/issues/24</a></strong></p>
+:ET

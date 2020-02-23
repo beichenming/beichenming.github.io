@@ -1,0 +1,430 @@
+I"�L<p><code class="highlighter-rouge">原创文章转载请注明出处，谢谢</code></p>
+
+<hr />
+<p>这段时间重新回顾了一下Block的知识，由于只要讲原理方面的知识，所以关于Block的用法就不做介绍了，不清楚的同学请自行补充。</p>
+
+<h3 id="block介绍">Block介绍</h3>
+
+<p>Block是C语言的扩充，即带有自动变量的匿名函数，它和普通变量一样，可以作为自动变量，函数参数，静态变量，全局变量。</p>
+
+<h3 id="block中截获自动变量值">Block中截获自动变量值</h3>
+
+<p>首先我们要理解自动变量是什么？我们观察下面一段代码，一个非常简单的Block，打印了val的变量。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>int val = 1;
+void (^blk)(void) = ^{
+    printf("%d\n", val);
+};
+val = 2;
+blk();
+
+/*output*/
+1
+</code></pre></div></div>
+<p><code class="highlighter-rouge">在上面的源码中，Block表达式使用了之前声明的自动变量val，虽然我们在之后调用block之前有修改val的值，但是打印出来的结果还是之前的旧值，关于这点大家应该都知道，但是至于原因是为什么，其实就是Block保存了val的瞬间值，具体说明我们需要通过了解Block的实现原理才清楚。</code></p>
+
+<hr />
+
+<h3 id="block的定义">Block的定义</h3>
+
+<p><code class="highlighter-rouge">通过将代码转换成C++的源码我们可以发现Block的定义。</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>int main(int argc, const char * argv[]) {
+    int val = 1;
+    void (*blk)(void) = ((void (*)())&amp;__main_block_impl_0((void *)__main_block_func_0, &amp;__main_block_desc_0_DATA, val));
+    val = 2;
+    ((void (*)(__block_impl *))((__block_impl *)blk)-&gt;FuncPtr)((__block_impl *)blk);
+    return 0;
+}
+</code></pre></div></div>
+<p><code class="highlighter-rouge">我们发现转换后的代码主要包括以下几个结构体：</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// __main_block_impl_0就是block的定义，它也是由几个变量和构造函数组成的。
+struct __main_block_impl_0 {
+  struct __block_impl impl;
+  struct __main_block_desc_0* Desc;
+  int val; // 自动变量备份
+  __main_block_impl_0(void *fp, struct __main_block_desc_0 *desc, int _val, int flags=0) : val(_val) {
+    impl.isa = &amp;_NSConcreteStackBlock;
+    impl.Flags = flags;
+    impl.FuncPtr = fp;
+    Desc = desc;
+  }
+};
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>struct __block_impl {
+  void *isa;     // 地址指向
+  int Flags;     // 某些标志
+  int Reserved;  // 关于版本升级所需的区域
+  void *FuncPtr; //具体block函数的实现
+};
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>static struct __main_block_desc_0 {
+  size_t reserved;   // 关于版本升级所需的区域
+  size_t Block_size; // block的大小
+} __main_block_desc_0_DATA = { 0, sizeof(struct __main_block_impl_0)};
+
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 该函数的参数__cself相当于C++实例方法中的this，也就是OC中的self，指向Block自身；
+// 通过读取自身保存的val，最后输出结果
+static void __main_block_func_0(struct __main_block_impl_0 *__cself) {
+  int val = __cself-&gt;val; // bound by copy
+  printf("%d\n", val);
+}
+</code></pre></div></div>
+<p><code class="highlighter-rouge">通过上面的结构我们可以发现Block的具体结构，我们会过头来继续看之前的自动截获变量的值不会变的问题，我们来看一下转换后的函数调用。</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>int val = 1;
+void (*blk)(void) = ((void (*)())&amp;__main_block_impl_0((void *)__main_block_func_0, &amp;__main_block_desc_0_DATA, val));
+val = 2;
+((void (*)(__block_impl *))((__block_impl *)blk)-&gt;FuncPtr)((__block_impl *)blk);
+</code></pre></div></div>
+<p><code class="highlighter-rouge">我们的block其实是传入了val的值并不是指针，block中备份了一个新的值，所以当val的值再之后再被修改的时候，block中的值不会改变。</code></p>
+
+<p>所以Block的结构其实是总结就是下图 ：</p>
+
+<p><img src="../../../../img/technology/2016-08-27/pic_1.jpg" alt="1.pic.jpg" /></p>
+
+<hr />
+
+<h3 id="block中改写自动变量值">Block中改写自动变量值</h3>
+<p>好，如果我们想改变自动变量的值呢？脑补一下是不是可以用以下几种方式来改变：</p>
+
+<ul>
+  <li>静态局部变量</li>
+  <li>静态全局变量</li>
+  <li>全局变量</li>
+</ul>
+
+<p><code class="highlighter-rouge">因为静态变量都是存在数据段，并不是栈里，数据并不会离开作用域而销毁，所以我们来验证一下，定义如下三个变量：</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>static int static_global_val = 1;
+int global_val = 2;
+
+int main(int argc, const char * argv[]) {
+    static int static_val = 3;
+    void (^blk)(void) = ^{
+        static_global_val++;
+        global_val++;
+        static_val++;
+        printf("%d\n", static_global_val);
+        printf("%d\n", global_val);
+        printf("%d\n", static_val);
+    };
+    blk();
+    return 0;
+}
+/*output*/
+2
+3
+4
+</code></pre></div></div>
+<p><code class="highlighter-rouge">果然采用这种方式是可以改变自动变量的值的，我们来看一下具体的block结构有什么变化：</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>static int static_global_val = 1;
+int global_val = 2;
+
+struct __main_block_impl_0 {
+  struct __block_impl impl;
+  struct __main_block_desc_0* Desc;
+  int *static_val;
+  __main_block_impl_0(void *fp, struct __main_block_desc_0 *desc, int *_static_val, int flags=0) : static_val(_static_val) {
+    impl.isa = &amp;_NSConcreteStackBlock;
+    impl.Flags = flags;
+    impl.FuncPtr = fp;
+    Desc = desc;
+  }
+};
+
+static void __main_block_func_0(struct __main_block_impl_0 *__cself) {
+  int *static_val = __cself-&gt;static_val; // bound by copy
+  static_global_val++;
+  global_val++;
+  (*static_val)++;
+  printf("%d\n", static_global_val);
+  printf("%d\n", global_val);
+  printf("%d\n", (*static_val));
+}
+
+int main(int argc, const char * argv[]) {
+    static int static_val = 3;
+    void (*blk)(void) = ((void (*)())&amp;__main_block_impl_0((void *)__main_block_func_0, &amp;__main_block_desc_0_DATA, &amp;static_val));
+    ((void (*)(__block_impl *))((__block_impl *)blk)-&gt;FuncPtr)((__block_impl *)blk);
+    return 0;
+}
+</code></pre></div></div>
+
+<p>我们发现对于全局变量和全局静态变量来讲没有什么改变，它们仍然是全局变量，但对于静态局部变量来说，它则是传入了静态局部变量的指针，block通过保存静态变量的指针，来在block中修改自动变量的值。</p>
+
+<p>那我们是不是就可以通过静态局部变量这种方式在block中修改变量的值呢？答案是最好不要，因为这种情况下block的代码会存放在数据段中，详细的说明我们下面再说，主要会讲到MRC和ARC在block的区别，这里主要是为了引出我们的__block关键字。</p>
+
+<hr />
+
+<h3 id="block中的__block说明符">Block中的__block说明符</h3>
+<p>关于__block说明符大家肯定不会陌生了，它的出现允许我们能在block中修改自动变量的值，只要我们在定义变量的时候在前面加上block说明符就可以了，那么它的原理是什么呢？我们还是通过一段代码来看一下结果:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code> __block int val = 1;
+ void (^blk)(void) = ^{
+     val++;
+     printf("%d\n", val);
+ };
+ blk();
+ 
+ /*output*/
+ 2
+</code></pre></div></div>
+<p>将上面的源码转化成C++，我们就可以发现这个时候的Block结构和之前不使用__block有很明显的区别了。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>struct __Block_byref_val_0 {
+  void *__isa;
+__Block_byref_val_0 *__forwarding;
+ int __flags;
+ int __size;
+ int val;
+};
+
+struct __main_block_impl_0 {
+  struct __block_impl impl;
+  struct __main_block_desc_0* Desc;
+  __Block_byref_val_0 *val; // by ref
+  __main_block_impl_0(void *fp, struct __main_block_desc_0 *desc, __Block_byref_val_0 *_val, int flags=0) : val(_val-&gt;__forwarding) {
+    impl.isa = &amp;_NSConcreteStackBlock;
+    impl.Flags = flags;
+    impl.FuncPtr = fp;
+    Desc = desc;
+  }
+};
+
+static void __main_block_func_0(struct __main_block_impl_0 *__cself) {
+  __Block_byref_val_0 *val = __cself-&gt;val; // bound by ref
+
+  (val-&gt;__forwarding-&gt;val)++;
+  printf("%d\n", (val-&gt;__forwarding-&gt;val));
+}
+    
+static void __main_block_copy_0(struct __main_block_impl_0*dst, 
+								 struct __main_block_impl_0*src) {
+ _Block_object_assign((void*)&amp;dst-&gt;val, (void*)src-&gt;val, 8/*BLOCK_FIELD_IS_BYREF*/);
+ }
+
+static void __main_block_dispose_0(struct __main_block_impl_0*src) {
+	_Block_object_dispose((void*)src-&gt;val, 8/*BLOCK_FIELD_IS_BYREF*/);
+}
+
+static struct __main_block_desc_0 {
+  size_t reserved;
+  size_t Block_size;
+  void (*copy)(struct __main_block_impl_0*, struct __main_block_impl_0*);
+  void (*dispose)(struct __main_block_impl_0*);
+} __main_block_desc_0_DATA = { 0, sizeof(struct __main_block_impl_0), __main_block_copy_0, __main_block_dispose_0};
+
+int main(int argc, const char * argv[]) {
+    __attribute__((__blocks__(byref))) __Block_byref_val_0 val = 
+    	{(void*)0,(__Block_byref_val_0 *)&amp;val, 0, sizeof(__Block_byref_val_0), 1};
+    	
+    void (*blk)(void) = 
+    	((void (*)())&amp;__main_block_impl_0((void *)__main_block_func_0, &amp;__main_block_desc_0_DATA, (__Block_byref_val_0 *)&amp;val, 570425344));
+    	
+    ((void (*)(__block_impl *))((__block_impl *)blk)-&gt;FuncPtr)((__block_impl *)blk);
+    return 0;
+}
+</code></pre></div></div>
+
+<p><code class="highlighter-rouge">我们仔细回过头来看，其实这个结构无非多了一个结构__Block_byref_val_0，它正是我们声明的val；</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 构造函数
+{
+ (void*)0,
+ (__Block_byref_val_0 *)&amp;val, 
+ 0, 
+ sizeof(__Block_byref_val_0), 
+ 1
+}
+
+// _block结构
+struct __Block_byref_val_0 {
+  void *__isa;   // 变量存放的区域
+  __Block_byref_val_0 *__forwarding;  //指向自身
+ int __flags; // 标志位
+ int __size; //  结构大小
+ int val;    // 变量的实际值
+};
+</code></pre></div></div>
+<p>于是我们可以明白为什么声明__block的变量可以在block中修改自动变量了，因为变量本身是一个结构体了，我们存放指针的方式就可以修改实际的值了。</p>
+
+<p>所以带有__block说明符的Block的结构其实是总结就是下图 ：</p>
+
+<p><img src="../../../../img/technology/2016-08-27/pic_2.jpg" alt="2.pic.jpg" /></p>
+
+<p>好，到现在为止我们还有很多的问题没有解决，让我们回过头来梳理一下:</p>
+
+<ul>
+  <li>为什么__block其实只是定义了一个结构体，我们只是通过指针来修改它的值，那么为什么不直接使用一个变量的指针来修改值就好了，这样不是更佳简单？</li>
+  <li>为什么我们不推荐静态局部变量的形式来修改我们的自动变量呢？</li>
+  <li>__Block_byref_val_0结构中的forwarding是用来干什么的呢？</li>
+  <li>还有就是我们__block_impl中的isa指针，是指向什么？NSConcreteStackBlock又是什么？</li>
+  <li>当我们使用了__block以后，在main_block_desc_0中就多了main_block_copy_0和main_block_dispose_0两个函数，是用来干什么的？</li>
+</ul>
+
+<p>接下来的一部分就来讲关于这些问题的解释。</p>
+
+<hr />
+
+<h3 id="block的存储域">Block的存储域</h3>
+
+<p>首先要说明的就是我们的变量，它们存放的地方可以是栈区，数据段，以及堆区，所以Block其实也一样，它也可以存放在这些地方，主要有以下几种:</p>
+
+<ul>
+  <li>_NSConcreteStackBlock   // 存储在栈上</li>
+  <li>_NSConcreteGlobalBlock  // 存储在数据段</li>
+  <li>_NSConcreteMallocBlock  // 存储在堆上</li>
+</ul>
+
+<p>我们最早的一段代码，isa指向的就是存放在栈上，但是并不是所有的Block都是存放在栈上的。</p>
+
+<h4 id="存放在数据段全局区的block情况">存放在数据段(全局区)的Block情况</h4>
+
+<p>1 使用了静态或者全局变量的时候，block实际上是存放在全局区的，我们来验证一下:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 静态变量
+// 通过po blk
+// (lldb) po blk
+// &lt;__NSGlobalBlock__: 0x100001060&gt;
+
+static int val = 1;
+void (^blk)(void) = ^{
+    val++;
+    printf("%d\n", val);
+};
+blk();
+
+// 全局变量也是一样，所以不做展示
+
+</code></pre></div></div>
+<p>但是这里有一点值得注意的是，通过clang转换出来的C++代码，好想一直都是显示_NSConcreteStackBlock，这个其实是有问题的，可能是编译器的优化什么的，这个我们不做考虑。所以我们并不推荐使用局部静态变量来修改自动变量的值，因为它会把我们的block全部存放在全局区中，这显然是不太好的。</p>
+
+<p>2 Block语法的表达式中不使用截获的自动变量，也就是不使用外部变量，block也是存放在全局区的。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 不使用外部变量
+// 通过po blk
+// (lldb) po blk
+// &lt;__NSGlobalBlock__: 0x100001060&gt;
+
+void (^blk)(void) = ^{
+    printf("Hello\n");
+};
+blk();
+</code></pre></div></div>
+<p>好，以上两种方式，其实我们的block并不会存放在栈区，而是存放在全局区，也就是数据段里面。</p>
+
+<h4 id="存放在堆区的block情况">存放在堆区的Block情况</h4>
+<p>为什么我们有时候要把block存放在堆上，而不在栈上呢？默认我们都是存放在栈上的，但是这有一个问题，设置在栈上的Block一但作用域结束就会被自动释放，由于__block变量也是在栈上，同样在作用域结束的同时，变量同样会被释放。</p>
+
+<p>所以这个时候我们就需要将block从栈上复制到堆上来解决这个问题。那么什么情况下我们需要这么做呢？其实讲这部分的内容是需要区分环境来说明的，也就是在ARC和MRC这两种环境下是有区别的。首先我们来看如下的一段代码来说明这个问题:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>typedef void (^blk)(void);
+
+blk getBlock() {
+    __block int val = 1;
+    blk b = ^{
+      printf("%d\n", ++val);
+    };
+    return b;
+}
+
+ blk b = getBlock();
+ b();
+ 
+ /*MRC output*/
+ 1606416289
+ po b
+ &lt;__NSStackBlock__: 0x7fff5fbff7a0&gt;
+ 
+ /*ARC output*/
+ 2
+ po b
+ &lt;__NSMallocBlock__: 0x100700050&gt;
+
+</code></pre></div></div>
+<p><strong>我们发现MRC和ARC下的结果是不一样的，明显ARC下是对的，MRC下的堆栈已经不对了，但是为什么会发生这种情况呢？其实就是我上面讲的__block变量在离开作用域的时候已经被释放了，所以这个时候的val已经是一个野指针了，结果当然不对。那么为什么ARC结果就是对的呢？</strong></p>
+
+<p><strong>原因就在于ARC情况下，编译器主动的把栈上的block做了一个备份到堆上。所以我们还可以正确的访问变量。
+那么我们之前的__forwarding为什么会指向自身就可以理解了，其实这个时候栈上的forwarding其实是去指向堆中的forwarding，而堆中的forwarding指向的还是自己，所以这样就能保证我们访问的就是同一个变量，就如下图所示：</strong></p>
+
+<p><img src="../../../../img/technology/2016-08-27/pic_3.jpg" alt="3.pic.jpg" /></p>
+
+<p>那我们我们如何手动的去把block从栈上备份到堆上呢？答案就是使用copy。我们把原来在MRC下执行的代码做修改：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>typedef void (^blk)(void);
+
+blk getBlock() {
+    __block int val = 1;
+    blk b = ^{
+      printf("%d\n", ++val);
+    };
+    return [b copy];
+}
+
+ blk b = getBlock();
+ b();
+ 
+ /*MRC output*/
+ 2
+ po b
+ &lt;__NSMallocBlock__: 0x100700050&gt;
+
+</code></pre></div></div>
+<p>这个时候我们发现block已经备份到堆上去了。</p>
+
+<p><code class="highlighter-rouge">在ARC下，通常讲Block作为返回值的时候，编译器会自动加上copy，也就是自动生成复制到堆上的代码。但是也有些例外的情况，连ARC也无法判断，这个时候ARC出于保守估计是不会主动加上copy的，因为从block从栈上复制到堆上是非常吃CPU的，如果Block在栈上就已经做够使用了，那么我们其实就不需要将它拷贝到堆上了。</code></p>
+
+<p>主要有以下几种情况编译器是不能判断的，所以不会加上copy：</p>
+
+<ul>
+  <li>向方法或者函数的参数中传递Block的时候。（需要我们自己手动使用copy）</li>
+  <li>Cocoa框架的方法且方法中含有usingBlock等时。（不需要我们手动copy）</li>
+  <li>GCD的API中传递Block时。（不需要我们手动copy）</li>
+</ul>
+
+<p>但是这里我强烈的怀疑第一种情况在xcode7中可能已经被优化了，我们看下面这个经典的例子：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>id getBlockArray() {
+    int val = 10;
+    return [NSArray arrayWithObjects:^{NSLog(@"a %d", val);},
+                                     ^{NSLog(@"b %d", val);},
+                                     nil];
+}
+
+id datas = getBlockArray();
+blk a = (blk)[datas objectAtIndex:0];
+a();
+
+</code></pre></div></div>
+
+<p><code class="highlighter-rouge">理论上getBlockArray获取到的Block无论在MRC下还是ARC下都应该是在栈区，这段代码应该是不对的，网上也有人说是不对的，但是它们都是使用了xcode5，我在xcode7下，在ARC的情况下竟然可以运行，而且结果正确，所以我怀疑现在已经没问题了。不过我们还是要记住，哪些情况是需要我们主动把block从栈区备份到堆区的才可以。</code></p>
+
+<p>最后总结一下什么时候栈上的block会复制到堆上呢？（ARC下）</p>
+
+<ul>
+  <li>调用Block的copy函数的时候</li>
+  <li>Block作为函数值返回的时候</li>
+  <li>将Block赋值给附有__strong修饰符id类型的类或者Block类型成员变量的时候</li>
+  <li>在方法名字中含有usingBlock的Cocoa框架方法或者GCD的API中传递Block时</li>
+</ul>
+
+<p>还有就是除了以下几种情况外，我们都应该主动调用Block的copy方法，其实有点重复。</p>
+
+<ul>
+  <li>Block作为函数值返回的时候</li>
+  <li>将Block赋值给附有__strong修饰符id类型的类或者Block类型成员变量的时候</li>
+  <li>在方法名字中含有usingBlock的Cocoa框架方法或者GCD的API中传递Block时</li>
+</ul>
+
+<hr />
+
+<h3 id="总结">总结</h3>
+<p>感觉这次讲的有些乱了，我并不是从MRC时代开始写OC的，所以直接从ARC开始让我不知道很多以前MRC时代的东西，这点让我感觉Apple做的其实不好，ARC对于开发虽然方便了，但是也容易让开发人员变的不了解很多东西的原理了。</p>
+:ET

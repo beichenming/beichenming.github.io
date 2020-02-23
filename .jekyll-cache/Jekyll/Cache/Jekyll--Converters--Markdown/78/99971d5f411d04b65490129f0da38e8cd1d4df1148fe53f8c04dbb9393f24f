@@ -1,0 +1,132 @@
+I"�<p><code class="highlighter-rouge">原创文章转载请注明出处，谢谢</code></p>
+
+<hr />
+<p><strong>这一节的主要内容是解析NSObject的一些类方法和实例方法，我会挑几个比较常用的方法入手来讲。我们知道NSObject实现了NSObject协议，所以NSObject协议里所有的@required的声明，在NSObject的源码里都是有实现的。类对象在OC中是一个单例的对象，所以类对象的内存地址是不会变的，基本上所有的实例方法都会有一个对应的类方法，只是有些类方法并没有被Public出来，所以我们没有感觉到。</strong></p>
+
+<p><code class="highlighter-rouge">接下来我们就开始具体用一些常用的方法来看看它们的具体实现。</code></p>
+
+<h3 id="self">self</h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+ (id)self {
+    return (id)self;
+}
+
+- (id)self {
+    return self;
+}
+
+</code></pre></div></div>
+<p><code class="highlighter-rouge">上面这两个方法是平时使用频率非常高的方法了，那么它们到底是什么意思呢？对于一个类对象来讲self返回的其实是一个指向objc_class对象的指针的地址；对于一个实例对象来讲self返回的其实是一个指向objc_object对象的指针地址，这弄清楚这点对于后面所有方法的理解会很有帮助。</code></p>
+
+<h3 id="class">Class</h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+ (Class)class {
+    return self;
+}
+
+- (Class)class {
+    return object_getClass(self);
+}
+
+// Unit Test
+BClass *clazz = [[BClass alloc] init];
+NSLog(@"%p", clazz);
+NSLog(@"%p", [BClass class]);
+NSLog(@"%p", [clazz class]);
+
+// Output
+2016-06-25 14:33:55.405 InitDemo[8037:116623] 0x100105de0
+2016-06-25 14:33:55.406 InitDemo[8037:116623] 0x100002788
+2016-06-25 14:33:55.406 InitDemo[8037:116623] 0x100002788
+
+</code></pre></div></div>
+<p><code class="highlighter-rouge">上面这两个方法其实是返回一个指向objc_class的对象指针，从上面的单元测试可以看出它们两个返回的地址是一样的，因为实例对象的class方法其实是调用了object_getClass方法，返回的是isa指针指向的地址也就是BClass的类对象（也就是objc_object的isa指针），而BClass的类方法class返回的其实就是它自己，所以两个地址是相等的（参考上一节的图就可以明白了）。而单单clazz的objc_object首地址是和它们不相同的。</code></p>
+
+<h3 id="superclass">superclass</h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+ (Class)superclass {
+    return self-&gt;superclass;
+}
+
+- (Class)superclass {
+    return [self class]-&gt;superclass;
+}
+
+// Unit Test
+BClass *clazz = [[BClass alloc] init];
+NSLog(@"%p", [BClass superclass]);
+NSLog(@"%p", [AClass class]);
+NSLog(@"%p", [clazz superclass]);
+
+// Output
+2016-06-25 14:46:59.070 InitDemo[8108:121893] 0x100002748
+2016-06-25 14:46:59.071 InitDemo[8108:121893] 0x100002748
+2016-06-25 14:46:59.071 InitDemo[8108:121893] 0x100002748
+
+</code></pre></div></div>
+<p><code class="highlighter-rouge">这两个方法其实很容易理解，就是返回对象的superclass，无论是类对象还是实例对象，它们的superclass都是同一个对象。</code></p>
+
+<h3 id="ismemberofclass">isMemberOfClass</h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+ (BOOL)isMemberOfClass:(Class)cls {
+    return object_getClass((id)self) == cls;
+}
+
+- (BOOL)isMemberOfClass:(Class)cls {
+    return [self class] == cls;
+}
+
+// Unit Test
+BClass *clazz = [[BClass alloc] init];
+NSLog(@"%@", [clazz isMemberOfClass:[BClass class]]? @"YES" : @"NO");
+NSLog(@"%@", [BClass isMemberOfClass:object_getClass([BClass class])]? @"YES" : @"NO");
+
+// Output
+2016-06-25 15:07:25.487 InitDemo[8187:129155] YES
+2016-06-25 15:07:25.488 InitDemo[8187:129155] YES
+
+</code></pre></div></div>
+<p><code class="highlighter-rouge">这个方法Public出来的只有实例方法，类方法是没有的。因为实例方法其实就是判断某个实例对象是否是某个类的实例，而类方法判断的其实是某个类对象是否是某个metaclass的类对象，因为其实正常是没有必要需要这个类方法去判断metaclass的，所以才没有public出来这个方法，这是我猜测的原因，大家可以看看单元测试很容易理解，当然这里需要自己定义一个isMemberOfClass类方法。</code></p>
+
+<h3 id="iskindofclass">isKindOfClass</h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+ (BOOL)isKindOfClass:(Class)cls {
+    for (Class tcls = object_getClass((id)self); tcls; tcls = tcls-&gt;superclass) {
+        if (tcls == cls) return YES;
+    }
+    return NO;
+}
+
+- (BOOL)isKindOfClass:(Class)cls {
+    for (Class tcls = [self class]; tcls; tcls = tcls-&gt;superclass) {
+        if (tcls == cls) return YES;
+    }
+    return NO;
+}
+</code></pre></div></div>
+<p><code class="highlighter-rouge">判断是否是这个类或者这个类的子类的实例 
+isKindOfClass也和isMemberOfClass一样，只public出来的实例方法，没有类方法，因为实例方法是去判断某个实例对象是否是某个类或者其子类的实例，而类方法就是去判断某个类对象是否是某个metaclass或者其子类的类对象，看起来很绕，其实很容易理解的。</code></p>
+
+<h3 id="issubclassofclass">isSubclassOfClass</h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+ (BOOL)isSubclassOfClass:(Class)cls {
+    for (Class tcls = self; tcls; tcls = tcls-&gt;superclass) {
+        if (tcls == cls) return YES;
+    }
+    return NO;
+}
+
+// Unit Test
+NSLog(@"%@", [BClass isSubclassOfClass:[AClass class]]? @"YES" : @"NO");
+NSLog(@"%@", [AClass isSubclassOfClass:[AClass class]]? @"YES" : @"NO");
+
+// Output
+2016-06-25 15:23:33.464 InitDemo[8258:135774] YES
+2016-06-25 15:23:33.465 InitDemo[8258:135774] YES
+
+</code></pre></div></div>
+<p><code class="highlighter-rouge">这个方法是没有实例方法的，因为没有这个必要，它的作用就是判断某个类对象是否是某个类对象的子类或者本身，对于实例对象可以用isKindOfClass来完成。</code></p>
+
+<h2 id="总结">总结</h2>
+<p><strong>其实讲解析方法的部分主要目的是对前面的认知做一个深入的理解，所以我并有讲NSObject里其他的那些方法，只讲了这些和前面概念有关联的这部分，主要目的就是加深理解</strong></p>
+:ET

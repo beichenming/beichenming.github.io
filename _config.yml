@@ -3,7 +3,7 @@ title: BCM Blog
 SEOTitle: 北辰明 | BCM Blog
 header-img: img/home-bg.jpg
 email: beichenming@163.com
-description: "北辰明(请叫我辰明哥)其实是个逗比，喜欢写代码，也喜欢做菜。感觉自己是个文艺青年，但往往文艺不起来；感觉自己也是一个段子手，好像确实挺会讲段子的；我希望通过我自己的努力做一些事，让这个世界因为有我会有一点不一样～"
+description: "北辰明(请叫我辰明哥)我希望通过我自己的努力做一些事，让这个世界因为有我会有一点不一样～"
 keyword: ""
 url: "http://bcm.show"              # your host, for absolute URL
 baseurl: ""         # for example, '/blog' if your blog hosted on 'host/blog'
@@ -31,7 +31,7 @@ anchorjs: true                          # if you want to customize anchor. check
 # Gems
 # from PR#40, to support local preview for Jekyll 3.0
 gems: [jekyll-paginate]
-
+#plugins: [jekyll-paginate]
 
 
 # Markdown settings
@@ -66,7 +66,7 @@ ga_domain: bcm.show
 
 # Sidebar settings
 sidebar: true                           # whether or not using Sidebar.
-sidebar-about-description: "北辰明(请叫我辰明哥)其实是个逗比，喜欢写代码，也喜欢做菜。感觉自己是个文艺青年，但往往文艺不起来；感觉自己也是一个段子手，好像确实挺会讲段子的。"
+sidebar-about-description: "北辰明(请叫我辰明哥)我希望通过我自己的努力做一些事，让这个世界因为有我会有一点不一样～"
 sidebar-avatar: /img/avatar-bcm.jpg      # use absolute URL, seeing it's used in both `/` and `/about/`
 
 

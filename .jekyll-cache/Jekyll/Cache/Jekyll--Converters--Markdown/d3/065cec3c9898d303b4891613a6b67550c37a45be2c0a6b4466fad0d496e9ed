@@ -1,0 +1,471 @@
+I"<i
+<hr />
+<p>layout: post
+title: Masonry的原理解析以及使用
+subtitle:   “App 应用笔记”
+date:       2018-02-02 21:31:00
+author:     “BCM”
+header-img: “../../img/post-bg-2015.jpg”
+tags:
+    - Object C
+    - iOS
+—</p>
+
+<p>####前沿</p>
+
+<p>Masonry应该是目前使用最为广泛的对于AutoLayout的封装（Swift版本叫做SnapKit），但是大家对于Masonry的使用只是停留在基础的方式，很少人会去理解Masonry内部去调用AutoLayout的具体原理，致使在UI上容易产生很多的冲突，导致Masonry的Crash等等情况；所以这篇文章主要是来解决上面提出的问题；</p>
+
+<p>####关于AutoLayout
+要讲Masonry必须从iOS的布局历史开始，系统的UI布局大致分为3类：</p>
+
+<ul>
+  <li>Frame Layout</li>
+  <li>Auto Resizing</li>
+  <li>Auto Layout</li>
+</ul>
+
+<p>所谓FrameLayout即通过设置view的frame属性值从而控制view的位置以及大小；</p>
+
+<p>Auto Resizing其实也是属于FrameLayout的范畴，目的就是为了让子view可以跟随superview进行大小的调整；但是不足点就是Auto Resizing无法处理同级间的view布局以及无法让superview根据子view进行反向的数据调整；</p>
+
+<p>于是就出现了Autolayout，它是一种基于约束的布局系统；简单来说Autolayout的本质其实就是解析一组多元一次方程，当要确定一个视图的位置，也是需要确定视图的横纵坐标以及宽度和高度的，只是这个横纵坐标和宽度高度不再是写死的数值，而是根据约束计算得来，从而达到自动布局的效果；</p>
+
+<p align="center">
+<img src="../../../../img/technology/2018-02-02/pic_1.png" alt="change_pic" title="change_pic" width="500" />
+</p>
+
+<p>约束的本质就是两个view的线性关系，上图就是一个基本的关系方程式RedView的位置其实是通过BlueView的位置来固定的；这里不做过多的讲解有兴趣的朋友可以去看<a href="https://developer.apple.com/library/content/documentation/UserExperience/Conceptual/AutolayoutPG/AnatomyofaConstraint.html#//apple_ref/doc/uid/TP40010853-CH9-SW1">官方文档</a></p>
+
+<p>####AutoLayout的使用</p>
+
+<p>官方对于AutoLayout的使用提供了3种方法；但是其中两种本质都是其实都是使用NSLayoutConstraint对象进行约束；</p>
+
+<ol>
+  <li>使用xib以及storyboard进行布局，不过这种方式基本不用，因为不好用；</li>
+  <li>使用VFL语法进行约束，VFL简直就是一种又臭又长的语法，非常不好用也很难记，需要扫盲的同学可以查看<a href="https://developer.apple.com/library/content/documentation/UserExperience/Conceptual/AutolayoutPG/VisualFormatLanguage.html">官方文档</a>，我就不多讲了，因为我自己也不是很懂；</li>
+</ol>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/* Create an array of constraints using an ASCII art-like visual format string.
+ */
++ (NSArray&lt;NSLayoutConstraint *&gt; *)constraintsWithVisualFormat:(NSString *)format options:(NSLayoutFormatOptions)opts metrics:(nullable NSDictionary&lt;NSString *, NSNumber *&gt; *)metrics views:(NSDictionary&lt;NSString *, id&gt; *)views;
+
+</code></pre></div></div>
+<ol>
+  <li>使用NSLayoutConstraint纯代码添加，这种方式的缺点就是会大大的增加代码量，平均一个约束就需要写大量的代码，造成开发的效率大大降低；</li>
+</ol>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/* Create constraints explicitly.  Constraints are of the form "view1.attr1 = view2.attr2 * multiplier + constant" 
+ If your equation does not have a second view and attribute, use nil and NSLayoutAttributeNotAnAttribute.
+ Use of this method is not recommended. Constraints should be created using anchor objects on views and layout guides.
+ */
++ (instancetype)constraintWithItem:(id)view1 attribute:(NSLayoutAttribute)attr1 relatedBy:(NSLayoutRelation)relation toItem:(nullable id)view2 attribute:(NSLayoutAttribute)attr2 multiplier:(CGFloat)multiplier constant:(CGFloat)c;
+</code></pre></div></div>
+
+<p>上面曾经说过三种Autolayout的布局方法有两种的本质是一样的，就是因为VFL的本质其实就是返回多个NSLayoutConstraint对象，而不需要直接一个一个的创建NSLayoutConstraint对象大量减少代码量；个人认为要不是VFL的语法太过于变态，如果简单好用也就没有Masonry什么事了；</p>
+
+<p>Masonry的本质其实就是通过链式的语法将一个一个约束关系记录下来，然后通过创建一个一个NSLayoutConstraint对象进行布局约束，Masonry内部的本质其实这样并不复杂，只是存在很多细节点，导致直接使用的它的人会存在许多疑惑点，约束间的关系理不清；</p>
+
+<p>###关于Masonry中的宏定义
+一下有两段代码，其中一个使用了mas_定义另一个没有使用mas_定义，我想绝大部分人在使用的过程中肯定会充满疑惑，好像不管使用哪一个都没有问题；</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 使用宏定义
+[view mas_makeConstraints:^(MASConstraintMaker *make) {
+    make.top.mas_equalTo(self.mas_top).mas_offset(20.f);
+    make.leading.mas_equalTo(self.mas_leading).mas_offset(20.f);
+    make.size.mas_equalTo(CGSizeMake(100.f, 100.f));
+}];
+
+// 不使用宏定义
+[view makeConstraints:^(MASConstraintMaker *make) {
+    make.top.equalTo(self.top).offset(20.f);
+    make.leading.equalTo(self.leading).offset(20.f);
+    make.size.equalTo(CGSizeMake(100.f, 100.f));
+}];
+</code></pre></div></div>
+<p>其实上述两种布局最后的效果都是一样的；原因就是非mas_定义的本质调用还是调用mas_定义的声明；</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- (NSArray *)makeConstraints:(void(NS_NOESCAPE ^)(MASConstraintMaker *))block {
+    return [self mas_makeConstraints:block];
+}
+
+- (NSArray *)updateConstraints:(void(NS_NOESCAPE ^)(MASConstraintMaker *))block {
+    return [self mas_updateConstraints:block];
+}
+
+- (NSArray *)remakeConstraints:(void(NS_NOESCAPE ^)(MASConstraintMaker *))block {
+    return [self mas_remakeConstraints:block];
+}
+
+</code></pre></div></div>
+<p>对于makeConstraints（updateConstraints &amp;&amp; remakeConstraints）三个函数来说，本质还是调用了mas_makeConstraints（mas_updateConstraints &amp;&amp; mas_remakeConstraints）；</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>@property (nonatomic, strong, readonly) MASViewAttribute *mas_leading;
+
+#define MAS_ATTR_FORWARD(attr)  \
+- (MASViewAttribute *)attr {    \
+    return [self mas_##attr];   \
+}
+
+MAS_ATTR_FORWARD(leading);
+
+</code></pre></div></div>
+<p>对于leading这些属性来说，leading的调用实际调用的还是mas_leading;</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#define mas_equalTo(...)                 equalTo(MASBoxValue((__VA_ARGS__)))
+#define mas_greaterThanOrEqualTo(...)    greaterThanOrEqualTo(MASBoxValue((__VA_ARGS__)))
+#define mas_lessThanOrEqualTo(...)       lessThanOrEqualTo(MASBoxValue((__VA_ARGS__)))
+
+#define mas_offset(...)                  valueOffset(MASBoxValue((__VA_ARGS__)))
+
+
+#ifdef MAS_SHORTHAND_GLOBALS
+
+#define equalTo(...)                     mas_equalTo(__VA_ARGS__)
+#define greaterThanOrEqualTo(...)        mas_greaterThanOrEqualTo(__VA_ARGS__)
+#define lessThanOrEqualTo(...)           mas_lessThanOrEqualTo(__VA_ARGS__)
+
+#define offset(...)                      mas_offset(__VA_ARGS__)
+
+#endif
+
+/**
+ *	Sets the constraint relation to NSLayoutRelationEqual
+ *  returns a block which accepts one of the following:
+ *    MASViewAttribute, UIView, NSValue, NSArray
+ *  see readme for more details.
+ */
+- (MASConstraint * (^)(id attr))equalTo;
+
+/**
+ *	Sets the constraint relation to NSLayoutRelationGreaterThanOrEqual
+ *  returns a block which accepts one of the following:
+ *    MASViewAttribute, UIView, NSValue, NSArray
+ *  see readme for more details.
+ */
+- (MASConstraint * (^)(id attr))greaterThanOrEqualTo;
+
+/**
+ *	Sets the constraint relation to NSLayoutRelationLessThanOrEqual
+ *  returns a block which accepts one of the following:
+ *    MASViewAttribute, UIView, NSValue, NSArray
+ *  see readme for more details.
+ */
+- (MASConstraint * (^)(id attr))lessThanOrEqualTo;
+
+/**
+ *  Modifies the NSLayoutConstraint constant based on a value type
+ */
+- (MASConstraint * (^)(NSValue *value))valueOffset;
+
+</code></pre></div></div>
+
+<p>我们可以发现对于equalTo函数默认接受的应该是一个NSObject的对象，但是我们却可以传入一个CGSize以及CGFloat这类参数，原因就是因为存在一个equalTo的宏定义调用了mas_equalTo，而mas_equalTo实际调用了equalTo函数只是将参数转换成了NSObject对象；
+所以我们可以得到以下结果：
+无论传入的参数是否是NSObject对象，equalTo和mas_equalTo最后调用的都是equalTo函数，需要注意的是equalTo宏定义和equalTo函数虽然本质调用一样，但是是属于不同函数；</p>
+
+<p>###关于Masonry的数据转换
+通过上面的宏定义我们存在一个疑惑点，为一个非NSObject对象可以被equalTo接受呢？原因就是下面这个函数噶会的作用；</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/**
+ *  Given a scalar or struct value, wraps it in NSValue
+ *  Based on EXPObjectify: https://github.com/specta/expecta
+ */
+static inline id _MASBoxValue(const char *type, ...) {
+    va_list v;
+    va_start(v, type);
+    id obj = nil;
+    if (strcmp(type, @encode(id)) == 0) {
+        id actual = va_arg(v, id);
+        obj = actual;
+    } else if (strcmp(type, @encode(CGPoint)) == 0) {
+        CGPoint actual = (CGPoint)va_arg(v, CGPoint);
+        obj = [NSValue value:&amp;actual withObjCType:type];
+    } else if (strcmp(type, @encode(CGSize)) == 0) {
+        CGSize actual = (CGSize)va_arg(v, CGSize);
+        obj = [NSValue value:&amp;actual withObjCType:type];
+    } else if (strcmp(type, @encode(MASEdgeInsets)) == 0) {
+        MASEdgeInsets actual = (MASEdgeInsets)va_arg(v, MASEdgeInsets);
+        obj = [NSValue value:&amp;actual withObjCType:type];
+    } else if (strcmp(type, @encode(double)) == 0) {
+        double actual = (double)va_arg(v, double);
+        obj = [NSNumber numberWithDouble:actual];
+    } else if (strcmp(type, @encode(float)) == 0) {
+        float actual = (float)va_arg(v, double);
+        obj = [NSNumber numberWithFloat:actual];
+    } else if (strcmp(type, @encode(int)) == 0) {
+        int actual = (int)va_arg(v, int);
+        obj = [NSNumber numberWithInt:actual];
+    } else if (strcmp(type, @encode(long)) == 0) {
+        long actual = (long)va_arg(v, long);
+        obj = [NSNumber numberWithLong:actual];
+    } else if (strcmp(type, @encode(long long)) == 0) {
+        long long actual = (long long)va_arg(v, long long);
+        obj = [NSNumber numberWithLongLong:actual];
+    } else if (strcmp(type, @encode(short)) == 0) {
+        short actual = (short)va_arg(v, int);
+        obj = [NSNumber numberWithShort:actual];
+    } else if (strcmp(type, @encode(char)) == 0) {
+        char actual = (char)va_arg(v, int);
+        obj = [NSNumber numberWithChar:actual];
+    } else if (strcmp(type, @encode(bool)) == 0) {
+        bool actual = (bool)va_arg(v, int);
+        obj = [NSNumber numberWithBool:actual];
+    } else if (strcmp(type, @encode(unsigned char)) == 0) {
+        unsigned char actual = (unsigned char)va_arg(v, unsigned int);
+        obj = [NSNumber numberWithUnsignedChar:actual];
+    } else if (strcmp(type, @encode(unsigned int)) == 0) {
+        unsigned int actual = (unsigned int)va_arg(v, unsigned int);
+        obj = [NSNumber numberWithUnsignedInt:actual];
+    } else if (strcmp(type, @encode(unsigned long)) == 0) {
+        unsigned long actual = (unsigned long)va_arg(v, unsigned long);
+        obj = [NSNumber numberWithUnsignedLong:actual];
+    } else if (strcmp(type, @encode(unsigned long long)) == 0) {
+        unsigned long long actual = (unsigned long long)va_arg(v, unsigned long long);
+        obj = [NSNumber numberWithUnsignedLongLong:actual];
+    } else if (strcmp(type, @encode(unsigned short)) == 0) {
+        unsigned short actual = (unsigned short)va_arg(v, unsigned int);
+        obj = [NSNumber numberWithUnsignedShort:actual];
+    }
+    va_end(v);
+    return obj;
+}
+</code></pre></div></div>
+<p>对于所有传入的参数无论是否是NSObject对象，都会通过_MASBoxValue这个函数进行数据的封装，将所有参数都转换成一个NSObject对象</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- (void)setLayoutConstantWithValue:(NSValue *)value {
+    if ([value isKindOfClass:NSNumber.class]) {
+        self.offset = [(NSNumber *)value doubleValue];
+    } else if (strcmp(value.objCType, @encode(CGPoint)) == 0) {
+        CGPoint point;
+        [value getValue:&amp;point];
+        self.centerOffset = point;
+    } else if (strcmp(value.objCType, @encode(CGSize)) == 0) {
+        CGSize size;
+        [value getValue:&amp;size];
+        self.sizeOffset = size;
+    } else if (strcmp(value.objCType, @encode(MASEdgeInsets)) == 0) {
+        MASEdgeInsets insets;
+        [value getValue:&amp;insets];
+        self.insets = insets;
+    } else {
+        NSAssert(NO, @"attempting to set layout constant with unsupported value: %@", value);
+    }
+}
+</code></pre></div></div>
+<p>最后对于那些原本非NSObject对象在进行反向解析，设置对应的值；</p>
+
+<p>###关于Masonry的结构
+下图是网上一张很详细介绍Masonry结构的一张结构图，这里引用一下，因为我不想很具体的去介绍每一句代码，只把最核心的几点告诉大家；</p>
+<p align="center">
+<img src="../../../../img/technology/2018-02-02/pic_2.png" alt="change_pic" title="change_pic" width="500" />
+</p>
+
+<p>上图的大致流程其实很通俗易懂，因为我们这样想，我们最主要的目的无非就是讲一个一个NSLayoutConstraint约束抽象成我们能够简单通俗的编写方式，所以Masonry的主要流程其实就是每个view提供给用户一个MASConstraintMaker对象，让用户不断在MASConstraintMaker对象上添加一个一个MASConstraint的约束结构，最后将所有的MASConstraint转化成一个一个NSLayoutConstraint对象添加在相应的view上面；</p>
+
+<p>接下来的很多概念都需要用到上面的结构；</p>
+
+<p>###关于mas_makeConstraints，mas_updateConstraints，mas_remakeConstraints的区别理解
+我相信上面三个函数大家一定不会陌生，而且应该也知道对应的使用场景；
+mas_makeConstraints就是创建一个新的约束
+mas_updateConstraints就是更新一个原有的约束
+mas_remakeConstraints就是移除现有的约束，添加新的约束；</p>
+
+<p>介绍一下主要的原理，每个MASConstraintMaker对象有两个updateExisting &amp;&amp; removeExisting属性，用来保存当前的maker的约束方式</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// MASConstraintMaker
+/**
+ *  Whether or not to check for an existing constraint instead of adding constraint
+ */
+@property (nonatomic, assign) BOOL updateExisting;
+
+/**
+ *  Whether or not to remove existing constraints prior to installing
+ */
+@property (nonatomic, assign) BOOL removeExisting;
+
+</code></pre></div></div>
+<p>所以当调用mas_makeConstraints &amp;&amp; mas_updateConstraints &amp;&amp; mas_remakeConstraints这三个函数的时候，最后都会去执行install这个操作，而install里面本身就会判断如果是remakeConstraints那么它就会移除所有旧的约束，然后添加新的约束；对于updateConstraints &amp;&amp; makeConstraints只是
+添加新的约束，但是MASConstraint本身会保存当前的约束是更新约束还是新加约束；</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// MASConstraintMaker
+- (NSArray *)install {
+    if (self.removeExisting) {
+        NSArray *installedConstraints = [MASViewConstraint installedConstraintsForView:self.view];
+        for (MASConstraint *constraint in installedConstraints) {
+            [constraint uninstall];
+        }
+    }
+    NSArray *constraints = self.constraints.copy;
+    for (MASConstraint *constraint in constraints) {
+        constraint.updateExisting = self.updateExisting;
+        [constraint install];
+    }
+    [self.constraints removeAllObjects];
+    return constraints;
+}
+</code></pre></div></div>
+<p>那么对于updateConstraints &amp;&amp; makeConstraints内部对于updateExisting的区别其实很简单，如果updateExisting为true，那么就从当前的view去找是否存在和当前约束一样的约束，然后更新约束的constant，我们可以从layoutConstraintSimilarTo函数可以看到，判断约束是否存在的标准就是除了constant以外的所有属性；如果updateExisting为false，那么就是直接添加新的约束；</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// MASConstraint
+/**
+ *  Whether or not to check for an existing constraint instead of adding constraint
+ */
+@property (nonatomic, assign) BOOL updateExisting;
+
+////////////////////////////////////////////////
+MASLayoutConstraint *existingConstraint = nil;
+if (self.updateExisting) {
+    existingConstraint = [self layoutConstraintSimilarTo:layoutConstraint];
+}
+if (existingConstraint) {
+    // just update the constant
+    existingConstraint.constant = layoutConstraint.constant;
+    self.layoutConstraint = existingConstraint;
+} else {
+    [self.installedView addConstraint:layoutConstraint];
+    self.layoutConstraint = layoutConstraint;
+    [firstLayoutItem.mas_installedConstraints addObject:self];
+}
+
+- (MASLayoutConstraint *)layoutConstraintSimilarTo:(MASLayoutConstraint *)layoutConstraint {
+    // check if any constraints are the same apart from the only mutable property constant
+
+    // go through constraints in reverse as we do not want to match auto-resizing or interface builder constraints
+    // and they are likely to be added first.
+    for (NSLayoutConstraint *existingConstraint in self.installedView.constraints.reverseObjectEnumerator) {
+        if (![existingConstraint isKindOfClass:MASLayoutConstraint.class]) continue;
+        if (existingConstraint.firstItem != layoutConstraint.firstItem) continue;
+        if (existingConstraint.secondItem != layoutConstraint.secondItem) continue;
+        if (existingConstraint.firstAttribute != layoutConstraint.firstAttribute) continue;
+        if (existingConstraint.secondAttribute != layoutConstraint.secondAttribute) continue;
+        if (existingConstraint.relation != layoutConstraint.relation) continue;
+        if (existingConstraint.multiplier != layoutConstraint.multiplier) continue;
+        if (existingConstraint.priority != layoutConstraint.priority) continue;
+
+        return (id)existingConstraint;
+    }
+    return nil;
+}
+
+</code></pre></div></div>
+
+<p>###关于Masonry为什么可以链式调用
+其实Masonry可以链式调用无非就是为了缩减代码量，没有其他任何原因；从我们之前的结构图可以看到MASConstraintMaker对象包函了大量的MASConstraint属性对象，而MASConstraint属性对象里面还是定义大量的MASConstraint属性，于是就可以不断返回MASConstraint的对象;于是问题来了，它是怎么做到将每个MASConstraint对象都保存起来呢？</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// MASConstraint
+/**
+ *	Usually MASConstraintMaker but could be a parent MASConstraint
+ */
+@property (nonatomic, weak) id&lt;MASConstraintDelegate&gt; delegate;
+
+// MASConstraintMaker
+@interface MASConstraintMaker () &lt;MASConstraintDelegate&gt;
+
+@property (nonatomic, weak) MAS_VIEW *view;
+@property (nonatomic, strong) NSMutableArray *constraints;
+
+@end
+
+- (MASConstraint *)constraint:(MASConstraint *)constraint addConstraintWithLayoutAttribute:(NSLayoutAttribute)layoutAttribute {
+    MASViewAttribute *viewAttribute = [[MASViewAttribute alloc] initWithView:self.view layoutAttribute:layoutAttribute];
+    MASViewConstraint *newConstraint = [[MASViewConstraint alloc] initWithFirstViewAttribute:viewAttribute];
+    if ([constraint isKindOfClass:MASViewConstraint.class]) {
+        //replace with composite constraint
+        NSArray *children = @[constraint, newConstraint];
+        MASCompositeConstraint *compositeConstraint = [[MASCompositeConstraint alloc] initWithChildren:children];
+        compositeConstraint.delegate = self;
+        [self constraint:constraint shouldBeReplacedWithConstraint:compositeConstraint];
+        return compositeConstraint;
+    }
+    if (!constraint) {
+        newConstraint.delegate = self;
+        [self.constraints addObject:newConstraint];
+    }
+    return newConstraint;
+}
+
+@protocol MASConstraintDelegate &lt;NSObject&gt;
+
+/**
+ *	Notifies the delegate when the constraint needs to be replaced with another constraint. For example
+ *  A MASViewConstraint may turn into a MASCompositeConstraint when an array is passed to one of the equality blocks
+ */
+- (void)constraint:(MASConstraint *)constraint shouldBeReplacedWithConstraint:(MASConstraint *)replacementConstraint;
+
+- (MASConstraint *)constraint:(MASConstraint *)constraint addConstraintWithLayoutAttribute:(NSLayoutAttribute)layoutAttribute;
+
+@end
+
+</code></pre></div></div>
+
+<p>我们可以发现MASConstraint对象都有一个MASConstraintDelegate的代理，而MASConstraintMaker实现了这个代理，所以所有生成MASConstraint的任务其实最后都是通过MASConstraintMaker来实现的，并通过constraints进行保存；</p>
+
+<p>###关于Masonry如何正确添加对应的View关系
+可能很多人存在一个疑惑点，Masonry是如何正确的添加每个约束关系到对应的View上呢？不理解我这句话的同学可以自行写一个约束，然后打印对应的view的constraints可以发现，每个约束都有自己的对应关系，有的添加在superview上面，有些是添加在自己的view上面；那么Masonry是怎么做的呢？</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>MASLayoutConstraint *layoutConstraint
+    = [MASLayoutConstraint constraintWithItem:firstLayoutItem
+                                    attribute:firstLayoutAttribute
+                                    relatedBy:self.layoutRelation
+                                       toItem:secondLayoutItem
+                                    attribute:secondLayoutAttribute
+                                   multiplier:self.layoutMultiplier
+                                     constant:self.layoutConstant];
+    
+layoutConstraint.priority = self.layoutPriority;
+layoutConstraint.mas_key = self.mas_key;
+    
+if (self.secondViewAttribute.view) {
+    MAS_VIEW *closestCommonSuperview = [self.firstViewAttribute.view mas_closestCommonSuperview:self.secondViewAttribute.view];
+    NSAssert(closestCommonSuperview,
+             @"couldn't find a common superview for %@ and %@",
+             self.firstViewAttribute.view, self.secondViewAttribute.view);
+    self.installedView = closestCommonSuperview;
+} else if (self.firstViewAttribute.isSizeAttribute) {
+    self.installedView = self.firstViewAttribute.view;
+} else {
+    self.installedView = self.firstViewAttribute.view.superview;
+}
+</code></pre></div></div>
+<p>我们发现对于存在secondView的情况，那么firstView和secondView的最近公共view就是约束需要添加的view，如果firstView是设置size的大小（包括单独的宽高），那么需要添加约束的就是自身的view，其他情况一律都是firstView的superview（比如make.center.offset(10)这类操作）；</p>
+
+<p>###关于Masonry的一些缺省写法
+很多人会在代码中会写如下的代码，以下两段代码实现效果是一样的，但是其中一段是缺省代码，那么为什么缺省的写法也是可以正确实现呢？</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[view mas_makeConstraints:^(MASConstraintMaker *make) {
+    make.left.equalTo(self.view).offset(20.f);
+    make.top.equalTo(self.view).offset(20.f);
+    make.size.equalTo(CGSizeMake(120.f, 120.f));
+}];
+
+[view mas_makeConstraints:^(MASConstraintMaker *make) {
+    make.left.equalTo(self.view.left).offset(20.f);
+    make.top.equalTo(self.view.top).offset(20.f);
+    make.size.equalTo(CGSizeMake(120.f, 120.f));
+}];
+</code></pre></div></div>
+
+<p>原因就在于Masonry会对系统的缺省值进行补充，如果在equalTo的时候传入secondViewAttribute是UIView对象，那么使用的约束类型就是该firstView的约束属性，如果传入的secondViewAttribute是secondView的约束属性，那么就直接使用；</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- (void)setSecondViewAttribute:(id)secondViewAttribute {
+    if ([secondViewAttribute isKindOfClass:NSValue.class]) {
+        [self setLayoutConstantWithValue:secondViewAttribute];
+    } else if ([secondViewAttribute isKindOfClass:MAS_VIEW.class]) {
+        _secondViewAttribute = [[MASViewAttribute alloc] initWithView:secondViewAttribute layoutAttribute:self.firstViewAttribute.layoutAttribute];
+    } else if ([secondViewAttribute isKindOfClass:MASViewAttribute.class]) {
+        MASViewAttribute *attr = secondViewAttribute;
+        if (attr.layoutAttribute == NSLayoutAttributeNotAnAttribute) {
+            _secondViewAttribute = [[MASViewAttribute alloc] initWithView:attr.view item:attr.item layoutAttribute:self.firstViewAttribute.layoutAttribute];;
+        } else {
+            _secondViewAttribute = secondViewAttribute;
+        }
+    } else {
+        NSAssert(NO, @"attempting to add unsupported attribute: %@", secondViewAttribute);
+    }
+}
+</code></pre></div></div>
+
+<p>###Masonry细节解析
+大家想看Masonry具体细节原理具体看<a href="https://www.jianshu.com/p/cc945cc667b4">这篇文章</a>，代码上没有什么难度只要理解思想基本就能看明白；</p>
+
+<p>###关于Masonry的属性优先级注意点
+这里要说的主要是关于View自身内容尺寸(Intrinsic Content Size)，抗压缩抗拉伸(Compression-Resistance and Content-Hugging)这两种属性的概念介绍，这点是需要好好理解的，这些主要影响到的就是关于约束的优先级关系，我这里不做多讲有兴趣可以去看<a href="https://www.jianshu.com/p/c6541ff0bdaf">这篇文章</a>；</p>
+
+<p>###关于Masonry的性能
+其实AutoLayout的性能不是很好，想想也知道要在主线程解析多元一次方程，对于复杂的界面布局效率可想而知具体可以参见<a href="https://draveness.me/layout-performance">这篇文章</a>;</p>
+:ET
