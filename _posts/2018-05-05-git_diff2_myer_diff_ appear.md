@@ -238,7 +238,8 @@ int minDistance(char * text1, char * text2) {
 到这里为止**Myer's Diff**算法的思路就已经说明完毕了，我们回过头来再看看时间都复杂度以及空间复杂度；即使增加**(x,y) == (x+1,y+1)**这种情况的内部循环，**Myer's Diff**的复杂度还是优于**DP**，而空间复杂度也就是k的取值范围**k∈[-d, -d + 2 ... d - 2, d]**，空间复杂度应该是**o(2*(N + M))**;
 
 
-##引用
+## 引用
+
 **https://imcuttle.github.io/o(nd)-difference-algorithm(译)**
 
 **http://xmailserver.org/diff2.pdf(英)**
