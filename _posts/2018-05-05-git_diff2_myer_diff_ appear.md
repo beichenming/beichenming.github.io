@@ -30,14 +30,14 @@ Myer's Diff算法首先出现在一篇1986年一篇论文中”An O(ND) Differen
 定义map[i][j],i∈[0,N),j∈[0,M), map[i][j]的每个节点表示A长度为i时，B长度为j时的LCS；
 
 假设当A[i]!=B[j]时： 
-Right移动，map[i-1][j] -> map[i][j];等价于删除A[i]节点操作；map[i][j] = map[i-1][j] + 1；
-Down移动，map[i][j-1] -> map[i][j];等价于增加B[j]节点操作；map[i][j] = map[i][j-1] + 1；
+Rightward，map[i-1][j] -> map[i][j];等价于删除A[i]节点操作；map[i][j] = map[i-1][j] + 1；
+Downward，map[i][j-1] -> map[i][j];等价于增加B[j]节点操作；map[i][j] = map[i][j-1] + 1；
 
 假设当A[i]=B[j]时：
 斜向移动，map[i-1][j-1] -> map[i][j];等价于什么都不改变; map[i][j] = map[i-1][j-1]；
 
 ```
-所以我们本质就是求**Map[n][m]**的最小值；同时先**Right**，再**Down**（先删除，后新增）；
+所以我们本质就是求**Map[n][m]**的最小值；同时先**Rightward**，再**Downward**（先删除，后新增）；
 
 **Myer's Diff**算法使用的**图论**定义和**BFS**是一样的，只不过**BFS**的思路是标准的搜索思路我们通过求解每一步的最优解，然后直到运行到最后一个节点的时候才算出我们的最优解；
 
@@ -91,9 +91,9 @@ C  |       |       |  \    |       |       |       |       |
 
 > 我们定义**Node(x,y)**, **k = x - y**, **移动次数为d**;
 > 
-> if Node(x,y) to right, Node(x+1,y), k - 1 = x - y;
+> if Node(x,y) to Rightward, Node(x+1,y), k - 1 = x - y;
 > 
-> if Node(x,y) to down, Node(x,y+1), k + 1 = x - y;
+> if Node(x,y) to Downward, Node(x,y+1), k + 1 = x - y;
 > 
 > if **d = 1**; (0,0) => (1,0), **k = 1**;  (0,0) => (0,1), **k = -1**;
 >
@@ -141,12 +141,12 @@ o((N+M)D) = o(1 + 2 + ...+ (N + M + 1))
 
 首先我们需要通过一个空间记录所有k值对应的x最优解，令**V[]∈[-(n + m), (n + m)]**;
 
-之后还需要知道哪些情况**Node**需要**right**，哪些情况**Node**需要**down**；
+之后还需要知道哪些情况**Node**需要**Rightward**，哪些情况**Node**需要**Downward**；
 
 ```
-if k = -d, 此时前一个Node一定是down, 即(x,y+1), x = V[k - 1];
+if k = -d, 此时前一个Node一定是Downward, 即(x,y+1), x = V[k - 1];
 
-if k = d, 此时前一个Node一定是right, 即(x+1,y), x = V[k + 1] + 1;
+if k = d, 此时前一个Node一定是Rightward, 即(x+1,y), x = V[k + 1] + 1;
 
 if k∈(-d,d), 这种情况下我们需要考虑V[k - 1]和V[k + 1]的大小问题，
 
@@ -163,7 +163,7 @@ if k∈(-d,d), 这种情况下我们需要考虑V[k - 1]和V[k + 1]的大小问�
 |              \  \V[k]
 -----------------------
 
-所以此时前一个Node一定是down, 即(x,y+1), x = V[k - 1];
+所以此时前一个Node一定是Downward, 即(x,y+1), x = V[k - 1];
 
 当V[k - 1] > V[k + 1]时，情况如下：
 |-----------------------    
@@ -178,7 +178,7 @@ if k∈(-d,d), 这种情况下我们需要考虑V[k - 1]和V[k + 1]的大小问�
 |  (V[k - 1])o  \V[k]
 -----------------------
 
-所以此时前一个Node一定是right, 即(x+1,y),x = V[k + 1] + 1;
+所以此时前一个Node一定是Rightward, 即(x+1,y),x = V[k + 1] + 1;
 
 当V[k - 1] = V[k + 1]时，情况如下：
 |-----------------------    
@@ -193,7 +193,7 @@ if k∈(-d,d), 这种情况下我们需要考虑V[k - 1]和V[k + 1]的大小问�
 |            \  \V[k]
 -----------------------
 
-所以此时前一个Node right和down都可以，但是我们遵守先删除后添加的原则, 即(x+1,y),x = V[k + 1] + 1;
+所以此时前一个Node Rightward和Downward都可以，但是我们遵守先删除后添加的原则, 即(x+1,y),x = V[k + 1] + 1;
 
 我们知道了当前对应的x坐标，由于知道k，那么也可以求出y = x - k;
 
