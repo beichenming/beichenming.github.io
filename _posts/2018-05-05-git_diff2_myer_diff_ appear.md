@@ -204,6 +204,11 @@ if k∈(-d,d), 这种情况下我们需要考虑V[k - 1]和V[k + 1]的大小问�
 所以大致的思路代码如下所示:
 
 ```
+int longestCommonSubsequence(char * text1, char * text2) {
+    int sum = minDistance(text1, text2);
+    return (strlen(text1) + strlen(text2) - sum) / 2;
+}
+
 int minDistance(char * text1, char * text2) {
     int map[10000];
     unsigned long allLength = (strlen(text1) + strlen(text2)) * 2;
@@ -237,7 +242,7 @@ int minDistance(char * text1, char * text2) {
 
 到这里为止**Myer's Diff**算法的思路就已经说明完毕了，我们回过头来再看看时间都复杂度；即使增加**(x,y) == (x+1,y+1)**这种情况的内部循环，**Myer's Diff**的时间复杂度还是优于**DP**;
 
-<mark>不过git diff最后使用的真实版本并不是上面这个，作者在上面的基础上又进行了思路的改进，主要原因就是上面这个方法要记录diff的路径空间复杂度会很高，这一点后面的文章在进行介绍；</markk>
+<mark>不过git diff最后使用的真实版本并不是上面这个，作者在上面的基础上又进行了思路的改进，主要原因就是上面这个方法要记录diff的路径空间复杂度会很高，这一点后面的文章在进行介绍；</mark>
 
 
 ## 引用
