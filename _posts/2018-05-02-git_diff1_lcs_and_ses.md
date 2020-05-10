@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Git Diff(初识)--常用算法LCS和SES
-subtitle:   "操作系统"
+subtitle:   "算法"
 date:       2018-05-02 16:31:00
 author:     "BCM"
 header-img: "../../img/post-bg-unix-linux.jpg"

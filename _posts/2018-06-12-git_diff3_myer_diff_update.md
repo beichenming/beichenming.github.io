@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Git Diff(优化)--Myer's Diff的改进
-subtitle:   "操作系统"
+subtitle:   "算法"
 date:       2018-06-12 09:31:00
 author:     "BCM"
 header-img: "../../img/post-bg-unix-linux.jpg"

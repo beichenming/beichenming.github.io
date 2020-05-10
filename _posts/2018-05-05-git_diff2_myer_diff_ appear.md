@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Git Diff(渐知)--Myer's Diff出现
-subtitle:   "操作系统"
+subtitle:   "算法"
 date:       2018-05-05 13:31:00
 author:     "BCM"
 header-img: "../../img/post-bg-unix-linux.jpg"
